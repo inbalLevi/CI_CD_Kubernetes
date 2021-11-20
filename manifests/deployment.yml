@@ -1,0 +1,102 @@
+apiVersion : apps/v1
+kind: Deployment
+metadata:
+  name: bootcampappgit 
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: bootcampappgit
+  template:
+    metadata:
+      labels:
+        app: bootcampappgit 
+    spec:
+      containers:
+        - name: bootcampappgit 
+          image: containerinbal.azurecr.io/bootcampappgit
+          imagePullPolicy: "Always"
+          ports:
+          - containerPort: 8080
+          envFrom:
+          - secretRef:
+             name: secret.yml
+          # env:
+          #   - name: COOKIE_ENCRYPT_PWD
+          #     valueFrom:
+          #       secretKeyRef:
+          #         name: secret.yml
+          #         key: COOKIE_ENCRYPT_PWD
+
+          #   - name: PORT
+          #     valueFrom:
+          #       secretKeyRef:
+          #         name: secret.yml
+          #         key: PORT
+
+          #   - name: HOST
+          #     valueFrom:
+          #       secretKeyRef:
+          #         name: secret.yml
+          #         key: HOST
+
+          #   - name: HOST_URL
+          #     valueFrom:
+          #       secretKeyRef:
+          #         name: secret.yml
+          #         key: HOST_URL
+
+          #   - name: NODE_ENV
+          #     valueFrom:
+          #       secretKeyRef:
+          #         name: secret.yml
+          #         key: NODE_ENV
+
+          #   - name: OKTA_CLIENT_ID
+          #     valueFrom:
+          #       secretKeyRef:
+          #         name: secret.yml
+          #         key: OKTA_CLIENT_ID
+
+          #   - name: OKTA_CLIENT_SECRET
+          #     valueFrom:
+          #       secretKeyRef:
+          #         name: secret.yml
+          #         key: OKTA_CLIENT_SECRET 
+
+          #   - name: OKTA_ORG_URL
+          #     valueFrom:
+          #       secretKeyRef:
+          #         name: secret.yml
+          #         key: OKTA_ORG_URL
+
+
+          #   - name: PGHOST
+          #     valueFrom:
+          #       secretKeyRef:
+          #         name: secret.yml
+          #         key: PGHOST
+
+          #   - name: PGUSERNAME
+          #     valueFrom: 
+          #       secretKeyRef:
+          #         name: secret.yml
+          #         key: PGUSERNAME
+
+          #   - name: PGDATABASE
+          #     valueFrom:
+          #       secretKeyRef:
+          #         name: secret.yml
+          #         key: PGDATABASE
+
+          #   - name: PGPASSWORD
+          #     valueFrom:
+          #       secretKeyRef:
+          #         name: secret.yml
+          #         key: PGPASSWORD
+
+          #   - name: PGPORT
+          #     valueFrom:
+          #       secretKeyRef:
+          #         name: secret.yml
+          #         key: PGPORT

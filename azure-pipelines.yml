@@ -1,0 +1,155 @@
+# Deploy to Azure Kubernetes Service
+# Build and push image to Azure Container Registry; Deploy to Azure Kubernetes Service
+# https://docs.microsoft.com/azure/devops/pipelines/languages/docker
+
+trigger:
+- master
+
+resources:
+- repo: self
+
+variables:
+
+  # Container registry service connection established during pipeline creation
+  dockerRegistryServiceConnection: 'd0e6649d-a129-4642-a846-36eb33cfc8e0'
+  imageRepository: 'bootcampappgit'
+  containerRegistry: 'containerinbal.azurecr.io'
+  dockerfilePath: '**/Dockerfile'
+  tag: '$(Build.BuildId)'
+  imagePullSecret: 'containerinbal13101829-auth'
+
+  # Agent VM image name
+  vmImageName: 'ubuntu-latest'
+
+
+stages:
+- stage: Build
+  displayName: Build stage
+  jobs:
+  - job: Build
+    displayName: Build
+    pool:
+      name: inbal-pool
+      vmImage: $(vmImageName)
+    steps:
+    - task: Docker@2
+      displayName: Build and push an image to container registry
+      inputs:
+        command: buildAndPush
+        repository: $(imageRepository)
+        dockerfile: $(dockerfilePath)
+        containerRegistry: $(dockerRegistryServiceConnection)
+        tags: |
+          $(tag)
+
+    - upload: manifests
+      artifact: manifests
+    - upload: manifests-prod
+      artifact: manifests-prod
+      
+- stage: Deploy
+  displayName: Deploy stage
+  dependsOn: Build
+
+  jobs:
+  - deployment: Deploy
+    displayName: Deploy
+    pool:
+      name: inbal-pool
+      vmImage: $(vmImageName)
+    environment: 'bootcampappgit.default'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: KubernetesManifest@0
+            displayName: Create imagePullSecret
+            inputs:
+              action: 'createSecret'
+              kubernetesServiceConnection: 'k8s-default'
+              secretType: 'generic'
+              secretName: 'secret.yml'
+              secretArguments: '--from-literal=COOKIE_ENCRYPT_PWD=$(COOKIE_ENCRYPT_PWD) --from-literal=HOST=$(HOST) --from-literal=PORT=$(PORT) --from-literal=NODE_ENV=$(NODE_ENV) --from-literal=HOST_URL=$(HOST_URL) --from-literal=OKTA_CLIENT_ID=$(OKTA_CLIENT_ID) --from-literal=OKTA_CLIENT_SECRET=$(OKTA_CLIENT_SECRET) --from-literal=OKTA_ORG_URL=$(OKTA_ORG_URL)  --from-literal=PGHOST=$(PGHOST) --from-literal=PGUSERNAME=$(PGUSERNAME) --from-literal=PGDATABASE=$(PGDATABASE) --from-literal=PGPASSWORD=$(PGPASSWORD)  --from-literal=PGPORT=$(PGPORT)'
+
+          - task: KubernetesManifest@0
+            displayName: Deploy to Kubernetes cluster
+            inputs:
+              action: 'deploy'
+              #kubernetesServiceConnection: 'k8s-default'
+              manifests: |
+                $(Pipeline.Workspace)/manifests/deployment.yml
+                $(Pipeline.Workspace)/manifests/service.yml
+                $(Pipeline.Workspace)/manifests/ingress.yml
+
+              containers: '$(containerRegistry)/$(imageRepository):$(tag)'
+              imagePullSecrets: |
+                $(imagePullSecret)
+              
+
+
+
+          - task: Kubernetes@1
+            inputs:
+              connectionType: 'Kubernetes Service Connection'
+              kubernetesServiceEndpoint: 'k8s-default'
+              command: 'apply'
+              useConfigurationFile: true
+              configuration: 'manifests/deployment.yml'
+              secretType: 'dockerRegistry'
+              containerRegistryType: 'Container Registry'
+              dockerRegistryEndpoint: 'containerinbal'
+              secretName: 'secret.yml'
+
+- stage: DeployToProduction
+  displayName: Deploy Prod
+  jobs:
+  - deployment: Deploy
+    displayName: Deploy
+    pool:
+      name: inbal-pool
+      vmImage: $(vmImageName)
+    environment: 'production.default'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: KubernetesManifest@0
+            displayName: Create imagePullSecret
+            inputs:
+              action: 'createSecret'
+              kubernetesServiceConnection: 'production-k8s-production-default-1637348472969'
+              secretType: 'generic'
+              secretName: 'secret-prod.yml'
+              secretArguments: '--from-literal=COOKIE_ENCRYPT_PWD=$(COOKIE_ENCRYPT_PWD) --from-literal=HOST=$(HOST) --from-literal=PORT=$(PORT) --from-literal=NODE_ENV=$(NODE_ENV) --from-literal=HOST_URL=$(HOST_URLL) --from-literal=OKTA_CLIENT_ID=$(OKTA_CLIENT_IDD) --from-literal=OKTA_CLIENT_SECRET=$(OKTA_CLIENT_SECRETT) --from-literal=OKTA_ORG_URL=$(OKTA_ORG_URL)  --from-literal=PGHOST=$(PGHOSTT) --from-literal=PGUSERNAME=$(PGUSERNAMEE) --from-literal=PGDATABASE=$(PGDATABASE) --from-literal=PGPASSWORD=$(PGPASSWORD)  --from-literal=PGPORT=$(PGPORT)'
+
+             
+          
+          - task: KubernetesManifest@0
+            displayName: Deploy to Kubernetes cluster
+            inputs:
+              action: 'deploy'
+              #kubernetesServiceConnection: 'k8s-default'
+              manifests: |
+                $(Pipeline.Workspace)/manifests-prod/deployment-prod.yml
+                $(Pipeline.Workspace)/manifests-prod/service-prod.yml
+                $(Pipeline.Workspace)/manifests-prod/ingress-prod.yml
+
+              containers: '$(containerRegistry)/$(imageRepository):$(tag)'
+              imagePullSecrets: |
+                $(imagePullSecret)
+
+          - task: Kubernetes@1
+            inputs:
+              connectionType: 'Kubernetes Service Connection'
+              kubernetesServiceEndpoint: 'production-k8s-production-default-1637348472969'
+              command: 'apply'
+              useConfigurationFile: true
+              configuration: 'manifests-prod/deployment-prod.yml'
+              secretType: 'dockerRegistry'
+              containerRegistryType: 'Container Registry'
+              dockerRegistryEndpoint: 'containerinbal'
+              secretName: 'secret-prod.yml'
+
+
+
+       
